@@ -1,0 +1,268 @@
+import Graphics2D;
+import Random;
+import TwoCansAlpha4;
+
+const N_NONTERMINALS = 4;
+const N_TERMINALS = 4;
+const N_PRODUCTIONS = 10;
+const MIN_TARGET_LENGTH = 10;
+const MAX_TARGET_LENGTH = 20;
+
+const SYMBOL_SIZE = 32;
+const SYMBOL_PAD = 2;
+const SYMBOL_BORDER_WIDTH = 2;
+
+class Symbol {
+	field id;
+	field nonterminal;
+
+	constructor(id, nonterminal) {
+		this.id = id;
+		this.nonterminal = nonterminal;
+	}
+
+	function equals(that) {
+		return this.id == that.id && this.nonterminal == that.nonterminal;
+	}
+}
+
+class Production {
+	field lhs;
+	field rhs;
+
+	constructor(lhs, rhs) {
+		this.lhs = lhs;
+		this.rhs = rhs;
+	}
+}
+
+class String {
+	field symbols;
+
+	constructor(symbols = []) {
+		this.symbols = symbols;
+	}
+
+	function equals(that) {
+		if (this.symbols.length != that.symbols.length) return false;
+		for (i = 0; i < this.symbols.length; ++i) {
+			if (!this.symbols[i].equals(that.symbols[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	function apply(production, idx) {
+		if (this.symbols[idx].equals(production.lhs)) {
+			this.symbols.remove(idx);
+			for (j = production.rhs.length - 1; j >= 0; --j) {
+				this.symbols.insert(idx, production.rhs[j]);
+			}
+		}
+	}
+}
+
+class MainScene : AbstractScene {
+	field productions;
+	field productionIdx = 0;
+	field stringIdx = 0;
+	field current;
+	field target;
+
+	static field colors =
+		[ [255, 0, 0]
+		, [0, 192, 0]
+		, [0, 128, 255]
+		, [255, 192, 0]
+		, [255, 255, 0]
+		, [0, 128, 255]
+		, [255, 128, 128]
+		, [0, 192, 192]
+		];
+
+	static field highlight = [255, 255, 255];
+
+	static field borderColor = [0, 0, 0];
+
+	function reset() {
+		this.productionIdx = 0;
+		this.stringIdx = 0;
+		// Start with the string containing just starting symbol.
+		this.current = new String([new Symbol(0, true)]);
+		// Randomize productions
+		this.productions = [];
+		for (i = 0; i < N_PRODUCTIONS; ++i) {
+			lhs = new Symbol(Random.randomInt(N_NONTERMINALS), true);
+			rhs = [];
+			rhsLength = Random.randomInt(5);
+			for (j = 0; j < rhsLength; ++j) {
+				rhs.add(new Symbol(Random.randomInt(N_NONTERMINALS), Random.randomInt(2) == 0));
+			}
+			production = new Production(lhs, rhs);
+			this.productions.add(production);
+		}
+		// Create target string by applying productions randomly.
+		productionMap = {};
+		for (i = 0; i < N_NONTERMINALS; ++i) {
+			productionMap[i] = [];
+		}
+		for (production : this.productions) {
+			productionMap[production.lhs.id].add(production);
+		}
+		for (i = 0; i < 100; ++i) {
+			this.target = new String([new Symbol(0, true)]);
+			for (j = 0; j < 1000; ++j) {
+				no_nonterminals = true;
+				for (symbol : this.target.symbols) {
+					if (symbol.nonterminal) {
+						no_nonterminals = false;
+						break;
+					}
+				}
+				if (no_nonterminals) {
+					break;
+				}
+
+				idx = Random.randomInt(this.target.symbols.length);
+				if (this.target.symbols[idx].nonterminal) {
+					relevantProductions = productionMap[this.target.symbols[idx].id];
+					if (relevantProductions.length > 0) {
+						this.target.apply(relevantProductions.choice(), idx);
+					}
+				}
+			}
+
+			if (MIN_TARGET_LENGTH <= this.target.symbols.length && this.target.symbols.length <= MAX_TARGET_LENGTH) {
+				break;
+			}
+		}
+		if (this.target.symbols.length < MIN_TARGET_LENGTH || MAX_TARGET_LENGTH < this.target.symbols.length) {
+			this.reset();
+		}
+	}
+
+	constructor() : base() {
+		this.reset();
+	}
+
+	function update(inputManager, events) {
+		if (inputManager.isKeyPressedThisFrame(KeyboardKey.ESCAPE)) {
+			// Reset game.
+			this.reset();
+		}
+
+		if (inputManager.isKeyPressedThisFrame(KeyboardKey.R)) {
+			// Reset string to starting string.
+			this.current = new String([new Symbol(0, true)]);
+		}
+
+		// Select production.
+		if (inputManager.isKeyPressedThisFrame(KeyboardKey.UP)) {
+			--this.productionIdx;
+		}
+		if (inputManager.isKeyPressedThisFrame(KeyboardKey.DOWN)) {
+			++this.productionIdx;
+		}
+		this.productionIdx = this.productionIdx % this.productions.length;
+
+		// Select symbol in current string.
+		if (inputManager.isKeyPressedThisFrame(KeyboardKey.LEFT)) {
+			--this.stringIdx;
+		}
+		if (inputManager.isKeyPressedThisFrame(KeyboardKey.RIGHT)) {
+			++this.stringIdx;
+		}
+		if (this.current.symbols.length > 0) {
+			this.stringIdx = this.stringIdx % this.current.symbols.length;
+
+			if (inputManager.isKeyPressedThisFrame(KeyboardKey.SPACE) || inputManager.isKeyPressedThisFrame(KeyboardKey.ENTER)) {
+				// Apply production.
+				this.current.apply(this.productions[this.productionIdx], this.stringIdx);
+				if (this.stringIdx >= this.current.symbols.length) {
+					this.stringIdx = this.current.symbols.length - 1;
+				}
+			}
+		}
+
+		// Check for success.
+		if (this.current.equals(this.target)) {
+			this.reset();
+		}
+	}
+
+	function drawSymbol(symbol, x, y) {
+		color = MainScene.colors[symbol.id];
+		if (symbol.nonterminal) {
+			Graphics2D.Draw.rectangle
+				( x + SYMBOL_PAD
+				, y + SYMBOL_PAD
+				, SYMBOL_SIZE - 2 * SYMBOL_PAD
+				, SYMBOL_SIZE - 2 * SYMBOL_PAD
+				, MainScene.borderColor[0], MainScene.borderColor[1], MainScene.borderColor[2]
+				);
+			Graphics2D.Draw.rectangle
+				( x + SYMBOL_PAD + SYMBOL_BORDER_WIDTH
+				, y + SYMBOL_PAD + SYMBOL_BORDER_WIDTH
+				, SYMBOL_SIZE - 2 * SYMBOL_PAD - 2 * SYMBOL_BORDER_WIDTH
+				, SYMBOL_SIZE - 2 * SYMBOL_PAD - 2 * SYMBOL_BORDER_WIDTH
+				, color[0], color[1], color[2]
+				);
+		} else {
+			Graphics2D.Draw.ellipse
+				( x + SYMBOL_PAD
+				, y + SYMBOL_PAD
+				, SYMBOL_SIZE - 2 * SYMBOL_PAD
+				, SYMBOL_SIZE - 2 * SYMBOL_PAD
+				, MainScene.borderColor[0], MainScene.borderColor[1], MainScene.borderColor[2]
+				);
+			Graphics2D.Draw.ellipse
+				( x + SYMBOL_PAD + SYMBOL_BORDER_WIDTH
+				, y + SYMBOL_PAD + SYMBOL_BORDER_WIDTH
+				, SYMBOL_SIZE - 2 * SYMBOL_PAD - 2 * SYMBOL_BORDER_WIDTH
+				, SYMBOL_SIZE - 2 * SYMBOL_PAD - 2 * SYMBOL_BORDER_WIDTH
+				, color[0], color[1], color[2]
+				);
+		}
+	}
+
+	function drawString(string, x, y) {
+		for (i = 0; i < string.symbols.length; ++i) {
+			this.drawSymbol(string.symbols[i], x + i * SYMBOL_SIZE, y);
+		}
+	}
+
+	function render() {
+		Graphics2D.Draw.fill(0, 0, 0);
+
+		// Draw productions.
+		Graphics2D.Draw.rectangle
+			( 0
+			, this.productionIdx * SYMBOL_SIZE
+			, SYMBOL_SIZE * (1 + this.productions[this.productionIdx].rhs.length)
+			, SYMBOL_SIZE
+			, MainScene.highlight[0], MainScene.highlight[1], MainScene.highlight[2]
+			);
+		for (i = 0; i < this.productions.length; ++i) {
+			this.drawSymbol(this.productions[i].lhs, 0, SYMBOL_SIZE * i);
+			for (j = 0; j < this.productions[i].rhs.length; ++j) {
+				this.drawSymbol(this.productions[i].rhs[j], SYMBOL_SIZE * (1 + j), SYMBOL_SIZE * i);
+			}
+		}
+
+		// Draw current string.
+		if (this.current.symbols.length > 0) {
+			Graphics2D.Draw.rectangle
+				( this.stringIdx * SYMBOL_SIZE
+				, SYMBOL_SIZE * (this.productions.length + 1)
+				, SYMBOL_SIZE
+				, SYMBOL_SIZE
+				, MainScene.highlight[0], MainScene.highlight[1], MainScene.highlight[2]
+				);
+			this.drawString(this.current, 0, SYMBOL_SIZE * (this.productions.length + 1));
+		}
+
+		// Draw target string.
+		this.drawString(this.target, 0, SYMBOL_SIZE * (this.productions.length + 3));
+	}
+}

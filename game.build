@@ -1,0 +1,61 @@
+﻿{
+	"title": "Grow",
+	"id": "Grow",
+	"description": "Grow.",
+	"icons": ["assets/icon32.png", "assets/icon256.png"],
+
+	"deps": [
+		"%TWOCANS_SDK%/TwoCansAlpha4"
+	],
+
+	"source": "source",
+	"compilerlocale": "en",
+	"output": "output/%TARGET_NAME%",
+	"delegate-main-to": "TwoCansAlpha4",
+
+	"image-sheets": [
+		{
+			"id": "twocans_everything",
+			"prefix": "*"
+		}
+	],
+
+	"guidseed": "com.jsharman.Grow,v1,%TARGET_NAME%",
+
+	"vars": [
+		{ "name": "game_title", "value": "Grow" },
+		{ "name": "initial_scene", "value": "MainScene" },
+		{ "name": "screen_width", "value": 640 },
+		{ "name": "screen_height", "value": 480 },
+		{ "name": "use_60_fps", "value": false },
+		{ "name": "enable_wasd", "value": true },
+		{ "name": "thumbnail", "value": "assets/icon200.png" }
+	],
+
+	"targets": [
+		{
+			"name": "csharp",
+			"platform": "csharp-app"
+		},
+		{
+			"name": "java",
+			"platform": "java-app"
+		},
+		{
+			"name": "python",
+			"platform": "python-app"
+		},
+		{
+			"name": "ios",
+			"platform": "javascript-app-ios"
+		},
+		{
+			"name": "android",
+			"platform": "javascript-app-android"
+		},
+		{
+			"name": "javascript",
+			"platform": "javascript-app"
+		}
+	]
+}
