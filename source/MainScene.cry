@@ -74,13 +74,17 @@ class String {
 	}
 }
 
-class MainScene : AbstractScene {
-	field productions;
-	field productionIdx = 0;
-	field stringIdx = 0;
-	field current;
-	field target;
+class Move {
+	field productionIdx;
+	field stringIdx;
 
+	constructor(productionIdx, stringIdx) {
+		this.productionIdx = productionIdx;
+		this.stringIdx = stringIdx;
+	}
+}
+
+class MainScene : AbstractScene {
 	static field colors =
 		[ [255, 0, 0] // Red
 		, [0, 192, 0] // Green
@@ -125,14 +129,30 @@ class MainScene : AbstractScene {
 			[ font.render("    Up/down: Select rule")
 			, font.render("    Left/right: Select the current shape")
 			, font.render("    Space/enter: Apply selected rule to current shape")
+			, font.render("    Z: Undo")
+			, font.render("    Y: Redo")
 			, font.render("    R: Retry the current level")
 			, font.render("    Escape: Start a new level")
 			]);
 	}
 
+	field productions;
+	field productionIdx;
+	field stringIdx;
+	field current;
+	field target;
+	field history;
+	field historyIdx;
+
+	constructor() {
+		this.reset();
+	}
+
 	function reset() {
 		this.productionIdx = 0;
 		this.stringIdx = 0;
+		this.history = [];
+		this.historyIdx = 0;
 		// Start with the string containing just starting symbol.
 		this.current = new String([new Symbol(0, true)]);
 		// Randomize productions
@@ -187,8 +207,13 @@ class MainScene : AbstractScene {
 		}
 	}
 
-	constructor() : base() {
-		this.reset();
+	function advanceHistory() {
+		if (this.historyIdx < this.history.length) {
+			move = this.history[this.historyIdx];
+			this.current.apply(this.productions[move.productionIdx], move.stringIdx);
+			this.stringIdx = move.stringIdx;
+			++this.historyIdx;
+		}
 	}
 
 	function update(inputManager, events) {
@@ -198,8 +223,25 @@ class MainScene : AbstractScene {
 		}
 
 		if (inputManager.isKeyPressedThisFrame(KeyboardKey.R)) {
-			// Reset string to starting string.
+			// Reset to start.
+			this.historyIdx = 0;
 			this.current = new String([new Symbol(0, true)]);
+		}
+
+		if (inputManager.isKeyPressedThisFrame(KeyboardKey.Z)) {
+			// Undo. Get the index of the previous point in history.
+			targetIdx = this.historyIdx - 1;
+			// Reset to start.
+			this.historyIdx = 0;
+			this.current = new String([new Symbol(0, true)]);
+			// Replay up to the previous point in history.
+			for (i = 0; i < targetIdx; ++i) {
+				this.advanceHistory();
+			}
+		}
+		if (inputManager.isKeyPressedThisFrame(KeyboardKey.Y)) {
+			// Redo.
+			this.advanceHistory();
 		}
 
 		// Select production.
@@ -222,6 +264,12 @@ class MainScene : AbstractScene {
 			this.stringIdx = this.stringIdx % this.current.symbols.length;
 
 			if (inputManager.isKeyPressedThisFrame(KeyboardKey.SPACE) || inputManager.isKeyPressedThisFrame(KeyboardKey.ENTER)) {
+				// Update history.
+				for (i = this.historyIdx; i < this.history.length; ++i) {
+					this.history.pop();
+				}
+				this.history.add(new Move(this.productionIdx, this.stringIdx));
+				++this.historyIdx;
 				// Apply production.
 				this.current.apply(this.productions[this.productionIdx], this.stringIdx);
 				if (this.stringIdx >= this.current.symbols.length) {
