@@ -1,4 +1,5 @@
 import Graphics2D;
+import Graphics2DText;
 import Random;
 import TwoCansAlpha4;
 
@@ -7,10 +8,20 @@ const N_TERMINALS = 4;
 const N_PRODUCTIONS = 10;
 const MIN_TARGET_LENGTH = 10;
 const MAX_TARGET_LENGTH = 20;
+const MAX_RHS_LENGTH = 4;
 
 const SYMBOL_SIZE = 32;
 const SYMBOL_PAD = 2;
 const SYMBOL_BORDER_WIDTH = 2;
+
+const TOP_PAD = 25;
+
+const LABEL_FONT_SIZE = 12;
+
+const INSTRUCTIONS_HEADING_SIZE = 16;
+const INSTRUCTIONS_BODY_SIZE = 14;
+const INSTRUCTIONS_LEFT = 212;
+const INSTRUCTIONS_LINE_SKIP = 25;
 
 class Symbol {
 	field id;
@@ -71,19 +82,53 @@ class MainScene : AbstractScene {
 	field target;
 
 	static field colors =
-		[ [255, 0, 0]
-		, [0, 192, 0]
-		, [0, 128, 255]
-		, [255, 192, 0]
-		, [255, 255, 0]
-		, [0, 128, 255]
-		, [255, 128, 128]
-		, [0, 192, 192]
+		[ [255, 0, 0] // Red
+		, [0, 192, 0] // Green
+		, [0, 128, 255] // Blue
+		, [255, 192, 0] // Orange
 		];
 
 	static field highlight = [255, 255, 255];
 
 	static field borderColor = [0, 0, 0];
+
+	static field rulesLabel;
+	static field currentLabel;
+	static field targetLabel;
+
+	static field instructions;
+
+	static constructor() {
+		font = FontResource.fromSystem('Arial').getRenderer().setSize(LABEL_FONT_SIZE);
+		MainScene.rulesLabel = font.render("Rules:");
+		MainScene.currentLabel = font.render("Current shapes:");
+		MainScene.targetLabel = font.render("Target circles:");
+
+		font.setColor(255, 192, 128);
+		font.setSize(INSTRUCTIONS_HEADING_SIZE);
+		MainScene.instructions = [font.render("Instructions:")];
+		font.setColor(192, 192, 192);
+		font.setSize(INSTRUCTIONS_BODY_SIZE);
+		MainScene.instructions.concat(
+			[ font.render("    Your goal is to transform the \"Current\" red square into")
+			, font.render("    the \"Target circles\". You can transform squares into")
+			, font.render("    other shapes by applying one of the \"Rules\". You can")
+			, font.render("    only apply a rule if the square to the left of its arrow")
+			, font.render("    is the same color as the selected square.")
+			]);
+		font.setColor(255, 192, 128);
+		font.setSize(INSTRUCTIONS_HEADING_SIZE);
+		MainScene.instructions.add(font.render("Controls:"));
+		font.setColor(192, 192, 192);
+		font.setSize(INSTRUCTIONS_BODY_SIZE);
+		MainScene.instructions.concat(
+			[ font.render("    Up/down: Select rule")
+			, font.render("    Left/right: Select the current shape")
+			, font.render("    Space/enter: Apply selected rule to current shape")
+			, font.render("    R: Retry the current level")
+			, font.render("    Escape: Start a new level")
+			]);
+	}
 
 	function reset() {
 		this.productionIdx = 0;
@@ -95,7 +140,7 @@ class MainScene : AbstractScene {
 		for (i = 0; i < N_PRODUCTIONS; ++i) {
 			lhs = new Symbol(Random.randomInt(N_NONTERMINALS), true);
 			rhs = [];
-			rhsLength = Random.randomInt(5);
+			rhsLength = Random.randomInt(MAX_RHS_LENGTH + 1);
 			for (j = 0; j < rhsLength; ++j) {
 				rhs.add(new Symbol(Random.randomInt(N_NONTERMINALS), Random.randomInt(2) == 0));
 			}
@@ -235,34 +280,46 @@ class MainScene : AbstractScene {
 	function render() {
 		Graphics2D.Draw.fill(0, 0, 0);
 
+		// Draw instructions.
+		for (i = 0; i < MainScene.instructions.length; ++i) {
+			MainScene.instructions[i].draw(INSTRUCTIONS_LEFT, INSTRUCTIONS_LINE_SKIP * i);
+		}
+
 		// Draw productions.
+		MainScene.rulesLabel.draw(0, 0);
 		Graphics2D.Draw.rectangle
 			( 0
-			, this.productionIdx * SYMBOL_SIZE
-			, SYMBOL_SIZE * (1 + this.productions[this.productionIdx].rhs.length)
+			, this.productionIdx * SYMBOL_SIZE + TOP_PAD
+			, SYMBOL_SIZE * (2 + this.productions[this.productionIdx].rhs.length)
 			, SYMBOL_SIZE
 			, MainScene.highlight[0], MainScene.highlight[1], MainScene.highlight[2]
 			);
 		for (i = 0; i < this.productions.length; ++i) {
-			this.drawSymbol(this.productions[i].lhs, 0, SYMBOL_SIZE * i);
+			// LHS
+			this.drawSymbol(this.productions[i].lhs, 0, SYMBOL_SIZE * i + TOP_PAD);
+			// Arrow
+			Images.get("arrow.png").draw(SYMBOL_SIZE, SYMBOL_SIZE * i + TOP_PAD);
+			// RHS
 			for (j = 0; j < this.productions[i].rhs.length; ++j) {
-				this.drawSymbol(this.productions[i].rhs[j], SYMBOL_SIZE * (1 + j), SYMBOL_SIZE * i);
+				this.drawSymbol(this.productions[i].rhs[j], SYMBOL_SIZE * (2 + j), SYMBOL_SIZE * i + TOP_PAD);
 			}
 		}
 
 		// Draw current string.
+		MainScene.currentLabel.draw(0, SYMBOL_SIZE * (this.productions.length + 1));
 		if (this.current.symbols.length > 0) {
 			Graphics2D.Draw.rectangle
 				( this.stringIdx * SYMBOL_SIZE
-				, SYMBOL_SIZE * (this.productions.length + 1)
+				, SYMBOL_SIZE * (this.productions.length + 1) + TOP_PAD
 				, SYMBOL_SIZE
 				, SYMBOL_SIZE
 				, MainScene.highlight[0], MainScene.highlight[1], MainScene.highlight[2]
 				);
-			this.drawString(this.current, 0, SYMBOL_SIZE * (this.productions.length + 1));
+			this.drawString(this.current, 0, SYMBOL_SIZE * (this.productions.length + 1) + TOP_PAD);
 		}
 
 		// Draw target string.
-		this.drawString(this.target, 0, SYMBOL_SIZE * (this.productions.length + 3));
+		MainScene.targetLabel.draw(0, SYMBOL_SIZE * (this.productions.length + 3));
+		this.drawString(this.target, 0, SYMBOL_SIZE * (this.productions.length + 3) + TOP_PAD);
 	}
 }
